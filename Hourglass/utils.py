@@ -26,13 +26,15 @@ def args_parser():
     parser.add_argument('--num_classes', type=int, default=10, help="number \
                         of classes")
     parser.add_argument('--model', type=str, default='resnet50', help='model to use')
-    parser.add_argument('--device', type=str, default='cuda:0', help="To use cuda, set \
+    parser.add_argument('--device', type=str, default='cuda', help="To use cuda, set \
                         to a specific GPU ID. Default set to use CPU.")
     parser.add_argument('--verbose', type=int, default=1, help='verbose')
     parser.add_argument('--seed', type=int, default=1234, help='random seed')
     parser.add_argument('--strategy', type=str, default='DFF', help='feature scheduleing\
                         strategys', choices=['FCFS', 'SFF', 'DFF'])
     parser.add_argument('--n_clusters', type=int, default=4, help='clusters for kmeans')
+    parser.add_argument('--split_method', type=str, default='LSH', help='method used\
+                        to ensure data heterogeneity')
 
     args = parser.parse_args()
     return args

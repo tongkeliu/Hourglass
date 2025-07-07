@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader
 from sklearn.cluster import KMeans
 from copy import deepcopy
 import numpy as np
+from collections import defaultdict
 
 class Client():
     def __init__(self, args, train_dataset, train_idxs, test_dataset, test_idxs, user_id):
@@ -98,19 +99,17 @@ class Scheduler():
         self.strategy = strategy
 
     def schedule(self, clients, server, num):
-        cluster = self.clusterer(n_clusters=self.args.n_clusters, \
-            max_iter=100, random_state=self.args.seed)
-        features = [self.user_feature[user][0].detach().numpy() for user in self.user_feature]
-        features = np.array(features).reshape(len(features),-1)
-        cluster.fit(features)
-        pred = cluster.predict(features)
-
-        backward_order = self.order_features(pred)
+        if self.args.split_method == 'kmeans':
+            backward_order = self.order_features_cluster()
+        else:
+            backward_order = self.order_feature_LSH()
+            
         client_weight_list = []
         for user_id in backward_order:
             feature = self.user_feature[user_id][0].to(self.args.device).requires_grad_(True)
             server_grad, pred = server.train(feature, self.user_feature[user_id][1])
             weight = clients[user_id].backprop(server_grad, pred, self.user_feature[user_id][1])
+            
             client_weight_list.append(weight)
         
         return client_weight_list
@@ -118,7 +117,14 @@ class Scheduler():
     def add_feature(self, feature, label, user_id):
         self.user_feature[user_id] = (feature, label)
     
-    def order_features(self, pred):
+    def order_features_cluster(self):
+        cluster = self.clusterer(n_clusters=self.args.n_clusters, \
+            max_iter=100, random_state=self.args.seed)
+        features = [self.user_feature[user][0].detach().numpy() for user in self.user_feature]
+        features = np.array(features).reshape(len(features),-1)
+        cluster.fit(features)
+        pred = cluster.predict(features)
+
         backward_order = []
         bucket = dict()
         for pseudo_label in range(self.args.n_clusters):
@@ -139,4 +145,31 @@ class Scheduler():
                     break
 
         return backward_order
-                
+    
+    def order_feature_LSH(self):
+        n_bits = 2 # four hyperplane
+        dim = len(self.user_feature[0][0].view(-1))
+
+        buckets = defaultdict(list)
+        plane_norms = np.random.rand(n_bits, dim) - 0.5
+        for user_id, (feature, label) in self.user_feature.items():
+            dot = np.dot(feature.view(-1), plane_norms.T)
+            dot = dot > 0
+            hash_str = ''.join(dot.astype(int).astype(str))
+            buckets[hash_str].append(user_id)
+        
+        backward_order = []
+        if self.strategy == 'FCFS':
+            backward_order = [i for i in range(len(self.user_feature))]
+        elif self.strategy == 'SFF':
+            for hash_str, user_ids in buckets:
+                backward_order.extend(user_ids)
+        elif self.strategy == 'DFF':
+            while True:
+                for hash_str ,user_ids in buckets.items():
+                    if user_ids:
+                        backward_order.append(buckets[hash_str].pop(0))
+                if len(self.user_feature) == len(backward_order):
+                    break
+        
+        return backward_order
