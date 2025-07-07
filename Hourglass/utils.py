@@ -8,7 +8,7 @@ def args_parser():
 
     parser.add_argument('--epochs', type=int, default=10,
                         help="number of rounds of training")
-    parser.add_argument('--num_users', type=int, default=5,
+    parser.add_argument('--num_users', type=int, default=20,
                         help="number of users: K")
     parser.add_argument('--frac', type=float, default=0.6,
                         help='the fraction of clients: C')
@@ -16,7 +16,7 @@ def args_parser():
                         help="the number of local epochs: E")
     parser.add_argument('--local_bs', type=int, default=50,
                         help="local batch size: B")
-    parser.add_argument('--local_lr', type=float, default=0.01,
+    parser.add_argument('--local_lr', type=float, default=0.05,
                         help='learning rate')
     parser.add_argument('--local_mtm', type=float, default=0.5,
                         help='SGD momentum (default: 0.5)')
@@ -30,6 +30,9 @@ def args_parser():
                         to a specific GPU ID. Default set to use CPU.")
     parser.add_argument('--verbose', type=int, default=1, help='verbose')
     parser.add_argument('--seed', type=int, default=1234, help='random seed')
+    parser.add_argument('--strategy', type=str, default='DFF', help='feature scheduleing\
+                        strategys', choices=['FCFS', 'SFF', 'DFF'])
+    parser.add_argument('--n_clusters', type=int, default=4, help='clusters for kmeans')
 
     args = parser.parse_args()
     return args
