@@ -3,7 +3,7 @@ import torch
 import random
 import numpy as np
 
-from utils import args_parser, FedAvg, get_logger
+from utils import args_parser, FedAvg, get_logger, available_server
 from model import *
 from devices import Client, Server, Scheduler
 from dataset import get_dataset, dataset_iid
@@ -21,7 +21,8 @@ def main(args, client_side_model, server_side_model):
     user_idxs_test = dataset_iid(test_dataset, args.num_users)
 
     logger = get_logger()
-    server = Server(server_side_model, args)
+    servers = [Server(deepcopy(server_side_model).to(f'cuda:{i}'), args) for i in range(args.M_GPU)]
+    # server = Server(server_side_model, args)
     scheduler = Scheduler(args, args.strategy)
 
     for epoch in range(args.epochs):
@@ -38,13 +39,20 @@ def main(args, client_side_model, server_side_model):
             while True:
                 for generator in client_feature_generator:
                     scheduler.add_feature(*next(generator))
-                client_weight_list = scheduler.schedule(clients, server, num)
+                client_weight_list = scheduler.schedule(clients, servers, num) #
         except StopIteration:
             avg_weight = FedAvg(client_weight_list)
             client_side_model.load_state_dict(avg_weight)
 
+        server_weights = [server.model.to('cpu').state_dict() for server in servers]
+        avg_weight = FedAvg(server_weights)
+        server_side_model.load_state_dict(avg_weight)
+        for i in range(len(servers)):
+            servers[i] = Server(deepcopy(server_side_model).to(f'cuda:{i}'), args)
+        
+        server = available_server(servers)
         client = Client(args, train_dataset, user_idxs[users[0]], test_dataset, user_idxs_test[users[0]], 0)
-        acc, loss = client.evaluate(model=deepcopy(client_side_model), server=server)
+        acc, loss = client.evaluate(model=deepcopy(client_side_model), server=server) #
         logger.info("epoch:{} accs:{} loss:{}".format(epoch, acc, loss))
 
 
@@ -54,6 +62,6 @@ if __name__ == "__main__":
 
     if args.model == 'resnet50':
         client_side_model = ClientModelResNet50().to(args.device)
-        server_side_model = ServerModelResNet50(args.num_classes).to(args.device)
+        server_side_model = ServerModelResNet50(args.num_classes)
     
     main(args, client_side_model, server_side_model)

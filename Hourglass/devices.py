@@ -7,6 +7,7 @@ from sklearn.cluster import KMeans
 from copy import deepcopy
 import numpy as np
 from collections import defaultdict
+from utils import available_server
 
 class Client():
     def __init__(self, args, train_dataset, train_idxs, test_dataset, test_idxs, user_id):
@@ -25,7 +26,7 @@ class Client():
         for i in range(self.args.local_ep):
             self.accs = []
             for data, label in self.train_dataloader:
-                data, label = data.to(self.args.device), label.to(self.args.device)
+                data, label = data.to(self.args.device), label
                 self.intermediate_feature = self.model(data)
                 feature = self.intermediate_feature.clone().detach().cpu()
                 # scheduler.add_feature(feature, label, self.user_id)
@@ -33,9 +34,8 @@ class Client():
 
     def backprop(self, server_grad, pred, label):
 
-        # no need to calculate loss
         self.optimizer.zero_grad()
-        self.intermediate_feature.backward(server_grad)
+        self.intermediate_feature.backward(server_grad.to(self.args.device))
         self.optimizer.step()
 
         self.accs.append(torch.sum(torch.argmax(pred, dim=1)==label).data / len(pred))
@@ -66,12 +66,14 @@ class Server():
     def __init__(self, model, args):
         self.model = model
         self.args = args
-        self.optimizer = SGD(model.parameters(), self.args.local_lr, self.args.local_mtm)
+        self.optimizer = SGD(self.model.parameters(), self.args.local_lr, self.args.local_mtm)
         self.criterion = nn.CrossEntropyLoss()
     
     def train(self, feature, label):
-
+        server_device = next(self.model.parameters()).device
         self.model.train()
+
+        feature, label = feature.to(server_device).requires_grad_(True), label.to(server_device)
         pred = self.model(feature)
         loss = self.criterion(pred, label)
 
@@ -80,10 +82,12 @@ class Server():
         feature_grad = feature.grad.clone().detach()
         self.optimizer.step()
 
-        return feature_grad, pred
+        return feature_grad, pred.detach().cpu()
 
     def evaluate(self, feature, label):
         self.model.eval()
+        server_device = next(self.model.parameters()).device
+        feature, label = feature.to(server_device), label.to(server_device)
         with torch.no_grad():
             pred = self.model(feature)
             acc = torch.sum(torch.argmax(pred, dim=1)==label) / len(pred)
@@ -98,7 +102,7 @@ class Scheduler():
         self.args = args
         self.strategy = strategy
 
-    def schedule(self, clients, server, num):
+    def schedule(self, clients, servers, num):
         if self.args.split_method == 'kmeans':
             backward_order = self.order_features_cluster()
         else:
@@ -106,8 +110,8 @@ class Scheduler():
             
         client_weight_list = []
         for user_id in backward_order:
-            feature = self.user_feature[user_id][0].to(self.args.device).requires_grad_(True)
-            server_grad, pred = server.train(feature, self.user_feature[user_id][1])
+            feature = self.user_feature[user_id][0]
+            server_grad, pred = available_server(servers).train(feature, self.user_feature[user_id][1])
             weight = clients[user_id].backprop(server_grad, pred, self.user_feature[user_id][1])
             
             client_weight_list.append(weight)
