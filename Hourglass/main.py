@@ -3,11 +3,12 @@ import torch
 import random
 import numpy as np
 
-from utils import args_parser, FedAvg, get_logger, available_server
+from utils import *
 from model import *
 from devices import Client, Server, Scheduler
 from dataset import get_dataset, dataset_iid
 from copy import deepcopy
+
 
 def same_seed(SEED):
     random.seed(SEED)
@@ -15,12 +16,14 @@ def same_seed(SEED):
     torch.manual_seed(SEED)
     torch.cuda.manual_seed(SEED)
 
-def main(args, client_side_model, server_side_model):
+def main(args):
     train_dataset, test_dataset = get_dataset(args)
+    client_side_model, server_side_model = get_model(args.model, args.device, args.num_classes)
     user_idxs = dataset_iid(train_dataset, args.num_users)
     user_idxs_test = dataset_iid(test_dataset, args.num_users)
 
     logger = get_logger()
+    get_GPU_info()
     servers = [Server(deepcopy(server_side_model).to(f'cuda:{i}'), args) for i in range(args.M_GPU)]
     # server = Server(server_side_model, args)
     scheduler = Scheduler(args, args.strategy)
@@ -60,8 +63,4 @@ if __name__ == "__main__":
     args = args_parser()
     same_seed(args.seed)
 
-    if args.model == 'resnet50':
-        client_side_model = ClientModelResNet50().to(args.device)
-        server_side_model = ServerModelResNet50(args.num_classes)
-    
-    main(args, client_side_model, server_side_model)
+    main(args)

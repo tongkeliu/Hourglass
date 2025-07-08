@@ -14,7 +14,7 @@ def args_parser():
                         help='the fraction of clients: C')
     parser.add_argument('--local_ep', type=int, default=2,
                         help="the number of local epochs: E")
-    parser.add_argument('--local_bs', type=int, default=50,
+    parser.add_argument('--local_bs', type=int, default=100,
                         help="local batch size: B")
     parser.add_argument('--local_lr', type=float, default=0.05,
                         help='learning rate')
@@ -22,14 +22,15 @@ def args_parser():
                         help='SGD momentum (default: 0.5)')
 
     parser.add_argument('--dataset', type=str, default='cifar10', help="name \
-                        of dataset")
+                        of dataset", choices=['cifar10','cinic10'])
     parser.add_argument('--num_classes', type=int, default=10, help="number \
                         of classes")
-    parser.add_argument('--model', type=str, default='resnet50', help='model to use')
+    parser.add_argument('--model', type=str, default='vit', help='model to use')
     parser.add_argument('--device', type=str, default='cuda:3', help="To use cuda, set \
                         to a specific GPU ID. Default set to use CPU.")
     parser.add_argument('--verbose', type=int, default=1, help='verbose')
     parser.add_argument('--seed', type=int, default=1234, help='random seed')
+    
     parser.add_argument('--strategy', type=str, default='DFF', help='feature scheduleing\
                         strategys', choices=['FCFS', 'SFF', 'DFF'])
     parser.add_argument('--n_clusters', type=int, default=4, help='clusters for kmeans')

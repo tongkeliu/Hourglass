@@ -3,6 +3,7 @@ from torch.utils.data import Dataset, DataLoader
 import torch.nn as nn
 import torch
 import numpy as np
+import os
 
 class DatasetSplit(Dataset):
     def __init__(self, dataset, idxs):
@@ -21,14 +22,22 @@ def get_dataset(args):
     if args.dataset == 'cifar10':
         data_dir = '../data/cifar'
         transform = transforms.Compose([
+            transforms.Resize((224, 224)),
             transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            transforms.Normalize((0.491, 0.482, 0.446), (0.247, 0.243, 0.261))
         ])
         train_dataset = datasets.CIFAR10(root = data_dir, train = True, transform = transform, download=True)
         test_dataset = datasets.CIFAR10(root=data_dir, train=True, transform=transform, download=True)
 
     elif args.dataset == 'cinic10':
-        data_dir = '../data/cinic'
+        data_dir = './data/cinic-10'
+        transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.478, 0.472, 0.430), (0.242, 0.238, 0.258))
+        ])
+        train_dataset = datasets.ImageFolder(root=os.path.join(data_dir, 'train'), transform=transform)
+        test_dataset = datasets.ImageFolder(root=os.path.join(data_dir, 'test'), transform=transform)
         
     return train_dataset, test_dataset
 

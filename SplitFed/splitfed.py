@@ -1,14 +1,3 @@
-#============================================================================
-# SplitfedV1 (SFLV1) learning: ResNet18 on HAM10000
-# HAM10000 dataset: Tschandl, P.: The HAM10000 dataset, a large collection of multi-source dermatoscopic images of common pigmented skin lesions (2018), doi:10.7910/DVN/DBW86T
-
-# We have three versions of our implementations
-# Version1: without using socket and no DP+PixelDP
-# Version2: with using socket but no DP+PixelDP
-# Version3: without using socket but with DP+PixelDP
-
-# This program is Version1: Single program simulation 
-# ============================================================================
 import torch
 from torch import nn
 from torchvision import transforms
@@ -68,10 +57,9 @@ class ResNet18_client_side(nn.Module):
     def __init__(self):
         super(ResNet18_client_side, self).__init__()
         self.layer1 = nn.Sequential (
-                nn.Conv2d(3, 64, kernel_size = 7, stride = 2, padding = 3, bias = False),
+                nn.Conv2d(3, 64, kernel_size = 7, stride = 1, padding = 3, bias = False),
                 nn.BatchNorm2d(64),
                 nn.ReLU (inplace = True),
-                nn.MaxPool2d(kernel_size = 3, stride = 2, padding =1),
             )
         self.layer2 = nn.Sequential  (
                 nn.Conv2d(64, 64, kernel_size = 3, stride = 1, padding = 1, bias = False),
@@ -101,9 +89,9 @@ class ResNet18_client_side(nn.Module):
            
 
 net_glob_client = ResNet18_client_side()
-if torch.cuda.device_count() > 1:
-    print("We use",torch.cuda.device_count(), "GPUs")
-    net_glob_client = nn.DataParallel(net_glob_client)    
+# if torch.cuda.device_count() > 1:
+#     print("We use",torch.cuda.device_count(), "GPUs")
+#     net_glob_client = nn.DataParallel(net_glob_client)    
 
 net_glob_client.to(device)
 print(net_glob_client)     
@@ -152,7 +140,7 @@ class ResNet18_server_side(nn.Module):
         self.layer5 = self._layer(block, 256, num_layers[1], stride = 2)
         self.layer6 = self._layer(block, 512, num_layers[2], stride = 2)
         self. averagePool = nn.AvgPool2d(kernel_size = 7, stride = 1)
-        self.fc = nn.Linear(512 * block.expansion, classes)
+        self.fc = nn.Linear(8192, classes)
         
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -187,16 +175,16 @@ class ResNet18_server_side(nn.Module):
         x5 = self.layer5(x4)
         x6 = self.layer6(x5)
         
-        x7 = F.avg_pool2d(x6, 7)
-        x8 = x7.view(x7.size(0), -1) 
+        # x7 = F.avg_pool2d(x6, 7)
+        x8 = x6.view(x6.size(0), -1) 
         y_hat =self.fc(x8)
         
         return y_hat
 
-net_glob_server = ResNet18_server_side(Baseblock, [2,2,2], 7) #7 is my numbr of classes
-if torch.cuda.device_count() > 1:
-    print("We use",torch.cuda.device_count(), "GPUs")
-    net_glob_server = nn.DataParallel(net_glob_server)   # to use the multiple GPUs 
+net_glob_server = ResNet18_server_side(Baseblock, [2,2,2], 10) #7 is my numbr of classes
+# if torch.cuda.device_count() > 1:
+#     print("We use",torch.cuda.device_count(), "GPUs")
+#     net_glob_server = nn.DataParallel(net_glob_server)   # to use the multiple GPUs 
 
 net_glob_server.to(device)
 print(net_glob_server)      
@@ -230,9 +218,10 @@ def FedAvg(w):
 
 
 def calculate_accuracy(fx, y):
-    preds = fx.max(1, keepdim=True)[1]
-    correct = preds.eq(y.view_as(preds)).sum()
-    acc = 100.00 *correct.float()/preds.shape[0]
+    # preds = fx.max(1, keepdim=True)[1]
+    # correct = preds.eq(y.view_as(preds)).sum()
+    correct = torch.sum(torch.argmax(fx, dim=1) == y)
+    acc = 100.00 *correct.float()/fx.shape[0]
     return acc
 
 # to print train - test together in each round-- these are made global
@@ -508,8 +497,8 @@ def dataset_iid(dataset, num_users):
 #=============================================================================
 #                         Data loading 
 #============================================================================= 
-df = pd.read_csv('data/HAM10000_metadata.csv')
-print(df.head())
+# df = pd.read_csv('data/HAM10000_metadata.csv')
+# print(df.head())
 
 
 lesion_type = {
@@ -528,11 +517,11 @@ imageid_path = {os.path.splitext(os.path.basename(x))[0]: x
 
 
 #print("path---------------------------------------", imageid_path.get)
-df['path'] = df['image_id'].map(imageid_path.get)
-df['cell_type'] = df['dx'].map(lesion_type.get)
-df['target'] = pd.Categorical(df['cell_type']).codes
-print(df['cell_type'].value_counts())
-print(df['target'].value_counts())
+# df['path'] = df['image_id'].map(imageid_path.get)
+# df['cell_type'] = df['dx'].map(lesion_type.get)
+# df['target'] = pd.Categorical(df['cell_type']).codes
+# print(df['cell_type'].value_counts())
+# print(df['target'].value_counts())
 
 #==============================================================
 # Custom dataset prepration in Pytorch format
@@ -557,10 +546,10 @@ class SkinData(Dataset):
         return X, y
 #=============================================================================
 # Train-test split          
-train, test = train_test_split(df, test_size = 0.2)
+# train, test = train_test_split(df, test_size = 0.2)
 
-train = train.reset_index()
-test = test.reset_index()
+# train = train.reset_index()
+# test = test.reset_index()
 
 #=============================================================================
 #                         Data preprocessing
@@ -587,8 +576,15 @@ test_transforms = transforms.Compose([
 
 
 # With augmentation
-dataset_train = SkinData(train, transform = train_transforms)
-dataset_test = SkinData(test, transform = test_transforms)
+# dataset_train = SkinData(train, transform = train_transforms)
+# dataset_test = SkinData(test, transform = test_transforms)
+
+from dataset import get_dataset
+class Args():
+    pass
+args = Args()
+args.dataset = 'cifar10'
+dataset_train, dataset_test = get_dataset(args)
 
 #----------------------------------------------------------------
 dict_users = dataset_iid(dataset_train, num_users)
