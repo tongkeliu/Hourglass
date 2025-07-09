@@ -16,16 +16,19 @@ def args_parser():
                         help="the number of local epochs: E")
     parser.add_argument('--local_bs', type=int, default=100,
                         help="local batch size: B")
-    parser.add_argument('--local_lr', type=float, default=0.05,
+    parser.add_argument('--local_lr', type=float, default=0.0001,
                         help='learning rate')
     parser.add_argument('--local_mtm', type=float, default=0.5,
                         help='SGD momentum (default: 0.5)')
+    parser.add_argument('--optimizer', type=str, default='adam', 
+                        help='the optimizer for model')
 
-    parser.add_argument('--dataset', type=str, default='cifar10', help="name \
-                        of dataset", choices=['cifar10','cinic10'])
-    parser.add_argument('--num_classes', type=int, default=10, help="number \
+    parser.add_argument('--dataset', type=str, default='agnews', help="name \
+                        of dataset", choices=['cifar10','cinic10','agnews'])
+    parser.add_argument('--num_classes', type=int, default=4, help="number \
                         of classes")
-    parser.add_argument('--model', type=str, default='vit', help='model to use')
+    parser.add_argument('--model', type=str, default='charcnn', help='model to use')
+
     parser.add_argument('--device', type=str, default='cuda:3', help="To use cuda, set \
                         to a specific GPU ID. Default set to use CPU.")
     parser.add_argument('--verbose', type=int, default=1, help='verbose')

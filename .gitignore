@@ -4,3 +4,4 @@ __pycache__/
 *.log
 **/__pycache__/
 test.ipynb
+save/

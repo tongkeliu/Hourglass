@@ -17,7 +17,7 @@ def same_seed(SEED):
     torch.cuda.manual_seed(SEED)
 
 def main(args):
-    train_dataset, test_dataset = get_dataset(args)
+    train_dataset, test_dataset = get_dataset(args.dataset)
     client_side_model, server_side_model = get_model(args.model, args.device, args.num_classes)
     user_idxs = dataset_iid(train_dataset, args.num_users)
     user_idxs_test = dataset_iid(test_dataset, args.num_users)

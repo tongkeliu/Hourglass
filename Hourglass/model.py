@@ -253,6 +253,84 @@ class ServerModelViT(nn.Module):
         x = self.classifier(x)
         return x
 
+class ClientModelCharCNN(nn.Module):
+    def __init__(self, num_features) -> None:
+        super(ClientModelCharCNN, self).__init__()
+        self.conv1 = nn.Sequential(
+            nn.Conv1d(num_features, 256, kernel_size=7, stride=1),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=3, stride=3)
+        )
+        self.conv2 = nn.Sequential(
+            nn.Conv1d(256, 256, kernel_size=7, stride=1),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=3, stride=3)
+        )     
+    
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        return x
+
+class ServerModelCharCNN(nn.Module):
+    def __init__(self, num_classes):
+        super(ServerModelCharCNN, self).__init__()          
+        self.conv3 = nn.Sequential(
+            nn.Conv1d(256, 256, kernel_size=3, stride=1),
+            nn.ReLU()
+        )
+        self.conv4 = nn.Sequential(
+            nn.Conv1d(256, 256, kernel_size=3, stride=1),
+            nn.ReLU()    
+        )
+        self.conv5 = nn.Sequential(
+            nn.Conv1d(256, 256, kernel_size=3, stride=1),
+            nn.ReLU()
+        )
+        self.conv6 = nn.Sequential(
+            nn.Conv1d(256, 256, kernel_size=3, stride=1),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=3, stride=3)
+        )
+        self.fc1 = nn.Sequential(
+            nn.Linear(8704, 1024),
+            nn.ReLU(),
+            nn.Dropout(p=0.5)
+        )
+        self.fc2 = nn.Sequential(
+            nn.Linear(1024, 1024),
+            nn.ReLU(),
+            nn.Dropout(p=0.5)
+        )
+        self.fc3 = nn.Linear(1024, num_classes)
+
+    def forward(self, x):
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x = self.conv5(x)
+        x = self.conv6(x)
+
+        x = x.view(x.size(0), -1)
+        x = self.fc1(x)
+        x = self.fc2(x)
+        x = self.fc3(x)
+        
+        return x
+
+class ClientModelLSTM(nn.Module):
+    def __init__(self, input_size, num_classes) -> None:
+        super(ClientModelLSTM, self).__init__()
+        self.lstm1 = nn.LSTM(input_size=input_size, hidden_size=128, num_layers=1, batch_first=True)
+        self.lstm2 = nn.LSTM(input_size=128, hidden_size=256, num_layers=4, batch_first=True)
+        self.fc = nn.Linear(in_features=256, out_features=num_classes, bias=True)
+    
+    def forward(self, x):
+        x = x.permute(0, 2, 1)
+        x = self.lstm1(x)
+        x = self.lstm2(x)
+        x = self.fc(x)
+        return x
+
 def get_model(model, client_device, num_classes):
     if model == 'resnet50':
         client_side_model = ClientModelResNet50().to(client_device)
@@ -263,30 +341,27 @@ def get_model(model, client_device, num_classes):
     elif model == 'vit':
         client_side_model = ClientModelViT().to(client_device)
         server_side_model = ServerModelViT(n_classes=num_classes)
+    elif model == 'charcnn':
+        client_side_model = ClientModelCharCNN(70).to(client_device)
+        server_side_model = ServerModelCharCNN(num_classes=num_classes)
     
     return client_side_model, server_side_model
 
 
 if __name__ == "__main__":
-    import os
-    from torchvision import datasets, transforms
-    from torch.optim import SGD
+    from torch.optim import SGD, Adam
     from torch.utils.data import DataLoader
+    from dataset import get_dataset
     from tqdm import tqdm
 
-    data_dir = './data/cinic-10'
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.478, 0.472, 0.430), (0.242, 0.238, 0.258))
-    ])
-    train_dataset = datasets.ImageFolder(root=os.path.join(data_dir, 'train'), transform=transform)
-    test_dataset = datasets.ImageFolder(root=os.path.join(data_dir, 'test'), transform=transform)
+    train_dataset, test_dataset = get_dataset('agnews')
     train_dataloader = DataLoader(train_dataset, batch_size=100, shuffle=True)
     test_dataloader = DataLoader(test_dataset, batch_size=100, shuffle=False)
 
     device = 'cuda'
-    model = ClientModelVgg16().to(device)
-    optimizer = SGD(model.parameters(), lr=0.01, momentum=0.5)
+    model = ClientModelLSTM(70, 4).to(device)
+    # optimizer = SGD(model.parameters(), lr=0.0001, momentum=0.5)
+    optimizer = Adam(model.parameters(), lr=0.0001)
     criterion = nn.CrossEntropyLoss()
 
     train_acc, train_loss = [], []
@@ -304,6 +379,6 @@ if __name__ == "__main__":
             train_acc.append(acc)
             train_loss.append(loss.item())
         
-            if idx % 100 == 0 and idx != 0:
+            if idx % 50 == 0 and idx != 0:
                 print(f"acc:{sum(train_acc) / len(train_acc)} loss:{sum(train_loss) / len(train_loss)}")
                 train_acc, train_loss = [], []

@@ -1,5 +1,5 @@
 import torch
-from torch.optim import SGD
+from torch.optim import SGD, Adam
 import torch.nn as nn
 from dataset import DatasetSplit
 from torch.utils.data import DataLoader
@@ -19,7 +19,10 @@ class Client():
     
     def forward(self, model):
         self.model = model
-        self.optimizer = SGD(self.model.parameters(), self.args.local_lr, self.args.local_mtm)
+        if self.args.optimizer == 'sgd':
+            self.optimizer = SGD(self.model.parameters(), self.args.local_lr, self.args.local_mtm)
+        elif self.args.optimizer == 'adam':
+            self.optimizer = Adam(self.model.parameters(), self.args.local_lr)
         self.model = self.model.to(self.args.device)
         self.model.train()
 
@@ -66,7 +69,10 @@ class Server():
     def __init__(self, model, args):
         self.model = model
         self.args = args
-        self.optimizer = SGD(self.model.parameters(), self.args.local_lr, self.args.local_mtm)
+        if self.args.optimizer == 'sgd':
+            self.optimizer = SGD(self.model.parameters(), self.args.local_lr, self.args.local_mtm)
+        elif self.args.optimizer == 'adam':
+            self.optimizer = Adam(self.model.parameters(), self.args.local_lr)
         self.criterion = nn.CrossEntropyLoss()
     
     def train(self, feature, label):
