@@ -27,7 +27,7 @@ def args_parser():
                         of dataset", choices=['cifar10','cinic10','agnews'])
     parser.add_argument('--num_classes', type=int, default=4, help="number \
                         of classes")
-    parser.add_argument('--model', type=str, default='charcnn', help='model to use')
+    parser.add_argument('--model', type=str, default='lstm', help='model to use')
 
     parser.add_argument('--device', type=str, default='cuda:3', help="To use cuda, set \
                         to a specific GPU ID. Default set to use CPU.")

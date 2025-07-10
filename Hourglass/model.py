@@ -318,18 +318,27 @@ class ServerModelCharCNN(nn.Module):
         return x
 
 class ClientModelLSTM(nn.Module):
-    def __init__(self, input_size, num_classes) -> None:
+    def __init__(self, input_size) -> None:
         super(ClientModelLSTM, self).__init__()
-        self.lstm1 = nn.LSTM(input_size=input_size, hidden_size=128, num_layers=1, batch_first=True)
-        self.lstm2 = nn.LSTM(input_size=128, hidden_size=256, num_layers=4, batch_first=True)
-        self.fc = nn.Linear(in_features=256, out_features=num_classes, bias=True)
+        self.lstm = nn.LSTM(input_size=input_size, hidden_size=32, num_layers=1, batch_first=True)
     
     def forward(self, x):
         x = x.permute(0, 2, 1)
-        x = self.lstm1(x)
-        x = self.lstm2(x)
-        x = self.fc(x)
+        x, _ = self.lstm(x)
         return x
+
+class ServerModelLSTM(nn.Module):
+    def __init__(self, input_size, hidden_size=32, num_classes=4, num_layers=20):
+        super().__init__()
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True) # utilize the LSTM model in torch.nn 
+        self.forwardCalculation = nn.Linear(hidden_size, num_classes)
+ 
+    def forward(self, x):
+        x = x.permute(0, 2, 1)
+        x, (h, c) = self.lstm(x)
+        x = self.forwardCalculation(h[-1])
+        return x
+
 
 def get_model(model, client_device, num_classes):
     if model == 'resnet50':
@@ -344,6 +353,9 @@ def get_model(model, client_device, num_classes):
     elif model == 'charcnn':
         client_side_model = ClientModelCharCNN(70).to(client_device)
         server_side_model = ServerModelCharCNN(num_classes=num_classes)
+    elif model == 'lstm':
+        client_side_model = ClientModelLSTM(70).to(client_device)
+        server_side_model = ServerModelLSTM(32, num_classes=num_classes)
     
     return client_side_model, server_side_model
 
@@ -359,7 +371,7 @@ if __name__ == "__main__":
     test_dataloader = DataLoader(test_dataset, batch_size=100, shuffle=False)
 
     device = 'cuda'
-    model = ClientModelLSTM(70, 4).to(device)
+    model = ServerModelLSTM(70, num_classes=4).to(device)
     # optimizer = SGD(model.parameters(), lr=0.0001, momentum=0.5)
     optimizer = Adam(model.parameters(), lr=0.0001)
     criterion = nn.CrossEntropyLoss()
