@@ -8,7 +8,7 @@ def args_parser():
 
     parser.add_argument('--epochs', type=int, default=10,
                         help="number of rounds of training")
-    parser.add_argument('--num_users', type=int, default=20,
+    parser.add_argument('--num_users', type=int, default=10,
                         help="number of users: K")
     parser.add_argument('--frac', type=float, default=0.6,
                         help='the fraction of clients: C')
@@ -23,11 +23,11 @@ def args_parser():
     parser.add_argument('--optimizer', type=str, default='adam', 
                         help='the optimizer for model')
 
-    parser.add_argument('--dataset', type=str, default='agnews', help="name \
-                        of dataset", choices=['cifar10','cinic10','agnews'])
-    parser.add_argument('--num_classes', type=int, default=4, help="number \
+    parser.add_argument('--dataset', type=str, default='sc', help="name \
+                        of dataset", choices=['cifar10','cinic10','agnews','sc'])
+    parser.add_argument('--num_classes', type=int, default=35, help="number \
                         of classes")
-    parser.add_argument('--model', type=str, default='lstm', help='model to use')
+    parser.add_argument('--model', type=str, default='vgg16_1d', help='model to use')
 
     parser.add_argument('--device', type=str, default='cuda:3', help="To use cuda, set \
                         to a specific GPU ID. Default set to use CPU.")

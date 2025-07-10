@@ -334,11 +334,124 @@ class ServerModelLSTM(nn.Module):
         self.forwardCalculation = nn.Linear(hidden_size, num_classes)
  
     def forward(self, x):
-        x = x.permute(0, 2, 1)
+        # x = x.permute(0, 2, 1)
         x, (h, c) = self.lstm(x)
         x = self.forwardCalculation(h[-1])
         return x
 
+class M5(nn.Module):
+    def __init__(self, n_input=1, n_output=35, stride=16, n_channel=32):
+        super().__init__()
+        self.conv1 = nn.Conv1d(n_input, n_channel, kernel_size=80, stride=stride)
+        self.bn1 = nn.BatchNorm1d(n_channel)
+        self.pool1 = nn.MaxPool1d(4)
+        self.conv2 = nn.Conv1d(n_channel, n_channel, kernel_size=3)
+        self.bn2 = nn.BatchNorm1d(n_channel)
+        self.pool2 = nn.MaxPool1d(4)
+        self.conv3 = nn.Conv1d(n_channel, 2 * n_channel, kernel_size=3)
+        self.bn3 = nn.BatchNorm1d(2 * n_channel)
+        self.pool3 = nn.MaxPool1d(4)
+        self.conv4 = nn.Conv1d(2 * n_channel, 2 * n_channel, kernel_size=3)
+        self.bn4 = nn.BatchNorm1d(2 * n_channel)
+        self.pool4 = nn.MaxPool1d(4)
+        self.fc1 = nn.Linear(2 * n_channel, n_output)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = F.relu(self.bn1(x))
+        x = self.pool1(x)
+        x = self.conv2(x)
+        x = F.relu(self.bn2(x))
+        x = self.pool2(x)
+        x = self.conv3(x)
+        x = F.relu(self.bn3(x))
+        x = self.pool3(x)
+        x = self.conv4(x)
+        x = F.relu(self.bn4(x))
+        x = self.pool4(x)
+        x = F.avg_pool1d(x, x.shape[-1])
+        x = x.permute(0, 2, 1)
+        x = self.fc1(x)
+        return x
+
+class ClientModelVGG16_1D(nn.Module):
+    def __init__(self, in_channels=1):
+        super(ClientModelVGG16_1D, self).__init__()
+        self.layer1 = nn.Sequential(
+            nn.Conv1d(in_channels=in_channels, out_channels=64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(64),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(kernel_size=2, stride=2),
+        )
+
+    def forward(self, x):
+        x = self.layer1(x)
+        return x
+
+class ServerModelVGG16_1D(nn.Module):
+    def __init__(self, num_classes):
+        super(ServerModelVGG16_1D, self).__init__()
+        self.layer2 = nn.Sequential(
+            nn.Conv1d(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(in_channels=128, out_channels=128, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(kernel_size=2, stride=2),
+
+            nn.Conv1d(in_channels=128, out_channels=256, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(256),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(256),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(256),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(kernel_size=2, stride=2),
+
+            nn.Conv1d(in_channels=256, out_channels=512, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(512),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(kernel_size=2, stride=2),
+
+            nn.Conv1d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(512),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(kernel_size=2, stride=2)
+        )
+
+        self.classifier = nn.Sequential(
+            nn.Linear(128000, 4096),
+            nn.ReLU(True),
+            nn.Dropout(p=0.5),
+            nn.Linear(4096, 4096),
+            nn.ReLU(True),
+            nn.Dropout(p=0.5),
+            nn.Linear(4096, num_classes),
+        )
+    
+    def forward(self, x):
+        x = self.layer2(x)
+        x = x.view(x.size(0), -1)
+        x = self.classifier(x)
+        return x
 
 def get_model(model, client_device, num_classes):
     if model == 'resnet50':
@@ -356,6 +469,9 @@ def get_model(model, client_device, num_classes):
     elif model == 'lstm':
         client_side_model = ClientModelLSTM(70).to(client_device)
         server_side_model = ServerModelLSTM(32, num_classes=num_classes)
+    elif model == 'vgg16_1d':
+        client_side_model = ClientModelVGG16_1D().to(client_device)
+        server_side_model = ServerModelVGG16_1D(num_classes=num_classes)
     
     return client_side_model, server_side_model
 
@@ -363,15 +479,15 @@ def get_model(model, client_device, num_classes):
 if __name__ == "__main__":
     from torch.optim import SGD, Adam
     from torch.utils.data import DataLoader
-    from dataset import get_dataset
+    from dataset import get_dataset, collate_fn
     from tqdm import tqdm
 
-    train_dataset, test_dataset = get_dataset('agnews')
-    train_dataloader = DataLoader(train_dataset, batch_size=100, shuffle=True)
-    test_dataloader = DataLoader(test_dataset, batch_size=100, shuffle=False)
+    train_dataset, test_dataset = get_dataset('sc')
+    train_dataloader = DataLoader(train_dataset, batch_size=100, shuffle=True, collate_fn=collate_fn)
+    test_dataloader = DataLoader(test_dataset, batch_size=100, shuffle=False, collate_fn=collate_fn)
 
     device = 'cuda'
-    model = ServerModelLSTM(70, num_classes=4).to(device)
+    model = ServerModelCharCNN(feature_dim=8000, num_classes=35).to(device)
     # optimizer = SGD(model.parameters(), lr=0.0001, momentum=0.5)
     optimizer = Adam(model.parameters(), lr=0.0001)
     criterion = nn.CrossEntropyLoss()

@@ -1,16 +1,33 @@
 # Hourglass
 my own implementation of paper [Hourglass: Enabling Efficient Split Federated Learning with Data Parallelism](https://dl.acm.org/doi/pdf/10.1145/3689031.3717467)
+## envirenment
+```
+torch==2.7.1
+torchvision==0.22.1
+torchaudio==2.7.1
+numpy==2.2.6
+einops==0.8.1
+scikit-learn==1.7.0
+```
 ## start
-```python
+```
 python main.py --model resnet50 --dataset cifar10 --M_GPU 3 --local_lr 0.001
 ```
 ## recommend hyperparameters
 |model|optimizer|lr|
 |-----|---------|--|
 |ResNet50|SGD|0.001|
-|Vgg16|SGD|0.001|
+|VGG16|SGD|0.001|
 |ViT|SGD|0.001|
 |CharCNN|Adam|0.0001|
+|LSTM|Adam|0.0001|
+## dataset details
+|dataset|type|num_classes|orgin_shape|input_shape|
+|-------|----|-----------|-----------|-----------|
+|CIFAR-10|image|10|(3,32,32)|(3,224,224)|
+|CINIC-10|image|10|(3,32,32)|(3,224,224)|
+|AG News|text|4|-------|(70,1014)|
+|SpeechCommands|audio|35|(1,4000~20000)|(1,8000)|
 ## options
 ```
 options:

@@ -10,12 +10,14 @@ from collections import defaultdict
 from utils import available_server
 
 class Client():
-    def __init__(self, args, train_dataset, train_idxs, test_dataset, test_idxs, user_id):
+    def __init__(self, args, train_dataset, train_idxs, test_dataset, test_idxs, user_id, collate_fn = None):
         self.criterion = nn.CrossEntropyLoss()
         self.args = args
         self.user_id = user_id
-        self.train_dataloader = DataLoader(DatasetSplit(train_dataset, train_idxs), batch_size=self.args.local_bs, shuffle=True)
-        self.test_dataloader = DataLoader(DatasetSplit(test_dataset, test_idxs), batch_size=args.local_bs, shuffle=False)
+        self.train_dataloader = DataLoader(DatasetSplit(train_dataset, train_idxs),\
+            batch_size=self.args.local_bs, shuffle=True, collate_fn=collate_fn)
+        self.test_dataloader = DataLoader(DatasetSplit(test_dataset, test_idxs),\
+            batch_size=args.local_bs, shuffle=False, collate_fn=collate_fn)
     
     def forward(self, model):
         self.model = model
@@ -158,12 +160,12 @@ class Scheduler():
     
     def order_feature_LSH(self):
         n_bits = 2 # four hyperplane
-        dim = len(self.user_feature[0][0].view(-1))
+        dim = len(self.user_feature[0][0].contiguous().view(-1))
 
         buckets = defaultdict(list)
         plane_norms = np.random.rand(n_bits, dim) - 0.5
         for user_id, (feature, label) in self.user_feature.items():
-            dot = np.dot(feature.view(-1), plane_norms.T)
+            dot = np.dot(feature.contiguous().view(-1), plane_norms.T)
             dot = dot > 0
             hash_str = ''.join(dot.astype(int).astype(str))
             buckets[hash_str].append(user_id)

@@ -6,6 +6,8 @@ import numpy as np
 import os
 import csv
 import json
+from torchaudio.datasets import SPEECHCOMMANDS
+import torchaudio
 
 class DatasetSplit(Dataset):
     def __init__(self, dataset, idxs):
@@ -34,11 +36,9 @@ class AGNEWs(Dataset):
         # read alphabet
         self.loadAlphabet(alphabet_path)
         self.load(label_data_path)
-        
-            
+                    
     def __len__(self):
         return len(self.label)
-
 
     def __getitem__(self, idx):
         X = self.oneHotEncode(idx)
@@ -64,7 +64,6 @@ class AGNEWs(Dataset):
 
         self.y = torch.LongTensor(self.label)
 
-
     def oneHotEncode(self, idx):
         # X = (batch, 70, sequence_length)
         X = torch.zeros(len(self.alphabet), self.l0)
@@ -84,6 +83,53 @@ class AGNEWs(Dataset):
         class_weight = [num_samples/float(self.label.count(c)) for c in label_set]    
         return class_weight, num_class
 
+
+class SubsetSC(SPEECHCOMMANDS):
+    def __init__(self, subset: str = None, root_dir = './data'):
+        super().__init__(root_dir, download=True)
+        def load_list(filename):
+            filepath = os.path.join(self._path, filename)
+            with open(filepath) as fileobj:
+                return [os.path.join(self._path, line.strip()) for line in fileobj]
+        if subset == "valid":
+            self._walker = load_list("validation_list.txt")
+        elif subset == "test":
+            self._walker = load_list("testing_list.txt")
+        elif subset == "train":
+            excludes = load_list("validation_list.txt") + load_list("testing_list.txt")
+            excludes = set(excludes)
+            self._walker = [w for w in self._walker if w not in excludes]
+
+class SpeechCommands(Dataset):
+    def __init__(self, subset, root_dir):
+        super(SpeechCommands, self).__init__()
+        self.dataset = SubsetSC(subset, root_dir)
+        self.labels = sorted(list(set(datapoint[2] for datapoint in self.dataset)))
+        self.transform = torchaudio.transforms.Resample(orig_freq=16000, new_freq=8000)
+
+    def __getitem__(self, index):
+        waveform, sample_rate, label, speaker_id, utterance_number = self.dataset[index]
+        waveform = self.transform(waveform)
+        label = torch.tensor(self.labels.index(label))
+        return waveform, label
+    
+    def __len__(self):
+        return len(self.dataset)
+
+def collate_fn(batch):
+    tensors, targets = [], []
+    for waveform, label in batch:
+        tensors += [waveform.t()]
+        targets += [label]
+    tensors = torch.nn.utils.rnn.pad_sequence(tensors, batch_first=True, padding_value=0.)
+    tensors = tensors.permute(0,2,1)
+    targets = torch.stack(targets)
+    return tensors, targets
+
+def get_collate_fn(args):
+    if args.dataset == 'sc':
+        return collate_fn
+
 def get_dataset(dataset):
     if dataset == 'cifar10':
         data_dir = '../data/cifar'
@@ -94,7 +140,6 @@ def get_dataset(dataset):
         ])
         train_dataset = datasets.CIFAR10(root = data_dir, train = True, transform = transform, download=True)
         test_dataset = datasets.CIFAR10(root=data_dir, train=True, transform=transform, download=True)
-
     elif dataset == 'cinic10':
         data_dir = './data/cinic-10'
         transform = transforms.Compose([
@@ -104,12 +149,15 @@ def get_dataset(dataset):
         ])
         train_dataset = datasets.ImageFolder(root=os.path.join(data_dir, 'train'), transform=transform)
         test_dataset = datasets.ImageFolder(root=os.path.join(data_dir, 'test'), transform=transform)
-    
     elif dataset == 'agnews':
         data_dir = './data/agnews'
         alphabet_path = './data/agnews/alphabet.json'
         train_dataset = AGNEWs(os.path.join(data_dir, 'train.csv'), alphabet_path)
         test_dataset = AGNEWs(os.path.join(data_dir, 'test.csv'), alphabet_path)
+    elif dataset == 'sc':
+        data_dir = './data'
+        train_dataset = SpeechCommands('train', data_dir)
+        test_dataset = SpeechCommands('test', data_dir)
 
     return train_dataset, test_dataset
 
