@@ -188,7 +188,7 @@ class Scheduler():
         if self.strategy == 'FCFS':
             backward_order = [i for i in range(len(self.user_feature))]
         elif self.strategy == 'SFF':
-            for hash_str, user_ids in buckets:
+            for hash_str, user_ids in buckets.items():
                 backward_order.extend(user_ids)
         elif self.strategy == 'DFF':
             while True:

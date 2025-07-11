@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 def args_parser():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--epochs', type=int, default=50,
+    parser.add_argument('--epochs', type=int, default=80,
                         help="number of rounds of training")
     parser.add_argument('--num_users', type=int, default=10,
                         help="number of users: K")
@@ -37,7 +37,7 @@ def args_parser():
     parser.add_argument('--verbose', type=int, default=1, help='verbose')
     parser.add_argument('--seed', type=int, default=1234, help='random seed')
     
-    parser.add_argument('--strategy', type=str, default='DFF', help='feature scheduleing\
+    parser.add_argument('--strategy', type=str, default='SFF', help='feature scheduleing\
                         strategys', choices=['FCFS', 'SFF', 'DFF'])
     parser.add_argument('--n_clusters', type=int, default=4, help='clusters for kmeans')
     parser.add_argument('--split_method', type=str, default='LSH', help='method used\
@@ -104,7 +104,7 @@ class Writer():
         self.writer = SummaryWriter(self.base_dir)
     
     def add_scalars(self, type, scalars: dict, step):
-        self.writer.add_scalars(self.prefix+'/'+self.args.strategy+'_'+type, scalars, step)
+        self.writer.add_scalars(self.prefix+'/'+type+'_', scalars, step)
     
     def close(self):
         self.writer.close()

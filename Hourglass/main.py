@@ -72,9 +72,10 @@ def main(args):
 
         current_time = current_time + scheduler.duration
         scheduler.duration = 0
-        writer.add_scalars("time", {"acc":acc}, float(current_time))
+        writer.add_scalars("time", {args.strategy+'_'+"acc":acc}, float(current_time))
         logger.debug("time:{} accs:{} loss:{}".format(current_time, acc, loss))
 
+    logger.info("Done")
 
 if __name__ == "__main__":
     args = args_parser()
