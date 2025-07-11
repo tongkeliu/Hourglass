@@ -1,6 +1,6 @@
 # Hourglass
 my own implementation of paper [Hourglass: Enabling Efficient Split Federated Learning with Data Parallelism](https://dl.acm.org/doi/pdf/10.1145/3689031.3717467)
-## envirenment
+## environment
 ```
 torch==2.7.1
 torchvision==0.22.1
@@ -11,7 +11,7 @@ scikit-learn==1.7.0
 ```
 ## start
 ```
-python main.py --model resnet50 --dataset cifar10 --M_GPU 3 --local_lr 0.001
+python Hourglass/main.py --model resnet50 --dataset cifar10 --M_GPU 3 --local_lr 0.001
 ```
 ## recommend hyperparameters
 |model|optimizer|lr|
@@ -60,4 +60,24 @@ options:
   --M_GPU M_GPU         the number of gpu for server to train model
 ```
 ## result
-to be continued...
+### overall performance of Hourglass
+As clients and servers are parallel,we can approximate the end_to_end time by calculating the time spent on  every stage
+$$ time_{kmeans} = max(time_{ClientForward})+time_{cluster}+max(time_{Server})+max(time_{ClientBackward})\\
+time_{LSH} = min(time_{ClientForward})+min(time_{Server})+max(time_{ClientBackward})$$
+|dataset|model|target_acc|FCFS|SFF|DFF|
+|-------|-----|----------|----|---|---|
+|CIFAR-10|VGG16|------|-----|----|----|
+|CIFAR-10|ResNet50|---|-----|----|----|
+|CIFAR-10|ViT|--------|-----|----|----|
+|CINIC-10|VGG16|------|-----|----|----|
+|CINIC-10|ResNet50|------|-----|----|----|
+|CINIC-10|ViT|------|-----|----|----|
+|AG News|CharCNN|-----|-----|----|----|
+|AG News|LSTM|------|-----|----|----|
+|Speech Commands|VGG16|---|----|----|----|
+
+### detailed performance
+To check details of accuracy and loss, run the command below and open [localhost:6006](localhost:6006)
+```
+tensorboard --logdir ./save --port 6006
+```

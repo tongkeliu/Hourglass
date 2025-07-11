@@ -482,14 +482,15 @@ if __name__ == "__main__":
     from dataset import get_dataset, collate_fn
     from tqdm import tqdm
 
-    train_dataset, test_dataset = get_dataset('sc')
-    train_dataloader = DataLoader(train_dataset, batch_size=100, shuffle=True, collate_fn=collate_fn)
-    test_dataloader = DataLoader(test_dataset, batch_size=100, shuffle=False, collate_fn=collate_fn)
+    train_dataset, test_dataset = get_dataset('cifar10')
+    train_dataloader = DataLoader(train_dataset, batch_size=100, shuffle=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=100, shuffle=False)
 
     device = 'cuda'
-    model = ServerModelCharCNN(feature_dim=8000, num_classes=35).to(device)
+    # model = ServerModelCharCNN(feature_dim=8000, num_classes=35).to(device)
+    model = resnet50().to(device)
     # optimizer = SGD(model.parameters(), lr=0.0001, momentum=0.5)
-    optimizer = Adam(model.parameters(), lr=0.0001)
+    optimizer = SGD(model.parameters(), lr=0.001)
     criterion = nn.CrossEntropyLoss()
 
     train_acc, train_loss = [], []

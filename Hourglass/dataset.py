@@ -45,7 +45,7 @@ class AGNEWs(Dataset):
         y = self.y[idx]
         return X, y
 
-    def loadAlphabet(self, alphabet_path = '../data/agnews/alphabet.json'):
+    def loadAlphabet(self, alphabet_path = './data/agnews/alphabet.json'):
         with open(alphabet_path) as f:
             self.alphabet = ''.join(json.load(f))
 
@@ -132,7 +132,7 @@ def get_collate_fn(args):
 
 def get_dataset(dataset):
     if dataset == 'cifar10':
-        data_dir = '../data/cifar'
+        data_dir = './data/cifar'
         transform = transforms.Compose([
             transforms.Resize((224, 224)),
             transforms.ToTensor(),

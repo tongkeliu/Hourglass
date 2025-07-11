@@ -8,6 +8,7 @@ from copy import deepcopy
 import numpy as np
 from collections import defaultdict
 from utils import available_server
+from time import time
 
 class Client():
     def __init__(self, args, train_dataset, train_idxs, test_dataset, test_idxs, user_id, collate_fn = None):
@@ -31,11 +32,12 @@ class Client():
         for i in range(self.args.local_ep):
             self.accs = []
             for data, label in self.train_dataloader:
+                start_time = time()
                 data, label = data.to(self.args.device), label
                 self.intermediate_feature = self.model(data)
                 feature = self.intermediate_feature.clone().detach().cpu()
                 # scheduler.add_feature(feature, label, self.user_id)
-                yield feature, label, self.user_id
+                yield feature, label, self.user_id, time() - start_time
 
     def backprop(self, server_grad, pred, label):
 
@@ -109,6 +111,8 @@ class Scheduler():
         self.clusterer = KMeans
         self.args = args
         self.strategy = strategy
+        self.user_time = {"client_forward":[], "server_time":[], "client_backward":[]}
+        self.duration = 0
 
     def schedule(self, clients, servers, num):
         if self.args.split_method == 'kmeans':
@@ -119,15 +123,25 @@ class Scheduler():
         client_weight_list = []
         for user_id in backward_order:
             feature = self.user_feature[user_id][0]
+            server_start_time = time()
             server_grad, pred = available_server(servers).train(feature, self.user_feature[user_id][1])
+            server_finish_time = time()
             weight = clients[user_id].backprop(server_grad, pred, self.user_feature[user_id][1])
+            client_finish_time = time()
             
             client_weight_list.append(weight)
-        
+            self.user_time["server_time"].append(server_finish_time - server_start_time)
+            self.user_time["client_backward"].append(client_finish_time - server_finish_time)
+
+        self.duration = self.duration + min(self.user_time['client_forward']) + \
+            min(self.user_time['server_time']) + max(self.user_time['client_backward'])
+        self.user_time = {"client_forward":[], "server_time":[], "client_backward":[]}
+
         return client_weight_list
 
-    def add_feature(self, feature, label, user_id):
+    def add_feature(self, feature, label, user_id, duration):
         self.user_feature[user_id] = (feature, label)
+        self.user_time["client_forward"].append(duration)
     
     def order_features_cluster(self):
         cluster = self.clusterer(n_clusters=self.args.n_clusters, \
