@@ -134,16 +134,16 @@ def get_dataset(dataset):
     if dataset == 'cifar10':
         data_dir = './data/cifar'
         transform = transforms.Compose([
-            transforms.Resize((224, 224)),
+            # transforms.Resize((224, 224)),
             transforms.ToTensor(),
             transforms.Normalize((0.491, 0.482, 0.446), (0.247, 0.243, 0.261))
         ])
         train_dataset = datasets.CIFAR10(root = data_dir, train = True, transform = transform, download=True)
-        test_dataset = datasets.CIFAR10(root=data_dir, train=True, transform=transform, download=True)
+        test_dataset = datasets.CIFAR10(root=data_dir, train=False, transform=transform, download=True)
     elif dataset == 'cinic10':
         data_dir = './data/cinic-10'
         transform = transforms.Compose([
-            transforms.Resize((224, 224)),
+            # transforms.Resize((224, 224)),
             transforms.ToTensor(),
             transforms.Normalize((0.478, 0.472, 0.430), (0.242, 0.238, 0.258))
         ])

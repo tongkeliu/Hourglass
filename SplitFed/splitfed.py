@@ -10,6 +10,7 @@ from sklearn.model_selection import train_test_split
 from PIL import Image
 from glob import glob
 from pandas import DataFrame
+from model import *
 
 import random
 import numpy as np
@@ -20,6 +21,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import copy
+from utils import *
+from time import time
 
 
 SEED = 1234
@@ -44,7 +47,7 @@ def prGreen(skk): print("\033[92m {}\033[00m" .format(skk))
 #===================================================================
 # No. of users
 num_users = 5
-epochs = 200
+epochs = 100
 frac = 1        # participation of clients; if 1 then 100% clients participate in SFLV1
 lr = 0.0001
 
@@ -88,7 +91,8 @@ class ResNet18_client_side(nn.Module):
  
            
 
-net_glob_client = ResNet18_client_side()
+# net_glob_client = ResNet18_client_side()
+net_glob_client = ClientModelCharCNN(70)
 # if torch.cuda.device_count() > 1:
 #     print("We use",torch.cuda.device_count(), "GPUs")
 #     net_glob_client = nn.DataParallel(net_glob_client)    
@@ -181,7 +185,8 @@ class ResNet18_server_side(nn.Module):
         
         return y_hat
 
-net_glob_server = ResNet18_server_side(Baseblock, [2,2,2], 10) #7 is my numbr of classes
+# net_glob_server = ResNet18_server_side(Baseblock, [2,2,2], 10) #7 is my numbr of classes
+net_glob_server = ServerModelCharCNN(4)
 # if torch.cuda.device_count() > 1:
 #     print("We use",torch.cuda.device_count(), "GPUs")
 #     net_glob_server = nn.DataParallel(net_glob_server)   # to use the multiple GPUs 
@@ -253,6 +258,7 @@ def train_server(fx_client, y, l_epoch_count, l_epoch, idx, len_batch):
     net_server = copy.deepcopy(net_model_server[idx]).to(device)
     net_server.train()
     optimizer_server = torch.optim.Adam(net_server.parameters(), lr = lr)
+    # optimizer_server = torch.optim.SGD(net_server.parameters(), lr=lr)
 
     
     # train and update
@@ -368,6 +374,7 @@ def evaluate_server(fx_client, y, idx, len_batch, ell):
         
         batch_loss_test.append(loss.item())
         batch_acc_test.append(acc.item())
+        acc_avg_test, loss_avg_test = [], []
         
                
         count2 += 1
@@ -412,7 +419,7 @@ def evaluate_server(fx_client, y, idx, len_batch, ell):
                 print(' Test: Round {:3d}, Avg Accuracy {:.3f} | Avg Loss {:.3f}'.format(ell, acc_avg_all_user, loss_avg_all_user))
                 print("==========================================================")
          
-    return 
+    return acc_avg_test, loss_avg_test
 
 #==============================================================================================================
 #                                       Clients-side Program
@@ -437,29 +444,36 @@ class Client(object):
         self.lr = lr
         self.local_ep = 1
         #self.selected_clients = []
-        self.ldr_train = DataLoader(DatasetSplit(dataset_train, idxs), batch_size = 256, shuffle = True)
-        self.ldr_test = DataLoader(DatasetSplit(dataset_test, idxs_test), batch_size = 256, shuffle = True)
+        self.ldr_train = DataLoader(DatasetSplit(dataset_train, idxs), batch_size = 50, shuffle = True)
+        self.ldr_test = DataLoader(DatasetSplit(dataset_test, idxs_test), batch_size = 50)
+        self.client_time = 0
+        self.server_time = 0
         
 
     def train(self, net):
         net.train()
         optimizer_client = torch.optim.Adam(net.parameters(), lr = self.lr) 
+        # optimizer_client = torch.optim.SGD(net.parameters(), lr=self.lr)
         
         for iter in range(self.local_ep):
             len_batch = len(self.ldr_train)
             for batch_idx, (images, labels) in enumerate(self.ldr_train):
+                start_time = time()
                 images, labels = images.to(self.device), labels.to(self.device)
                 optimizer_client.zero_grad()
                 #---------forward prop-------------
                 fx = net(images)
                 client_fx = fx.clone().detach().requires_grad_(True)
-                
+                intermediate_time = time()
+                self.client_time += intermediate_time - start_time
                 # Sending activations to server and receiving gradients from server
                 dfx = train_server(client_fx, labels, iter, self.local_ep, self.idx, len_batch)
-                
+                server_finish_time = time()
+                self.server_time += server_finish_time - intermediate_time
                 #--------backward prop -------------
                 fx.backward(dfx)
                 optimizer_client.step()
+                self.client_time += time() - server_finish_time
                             
             
             #prRed('Client{} Train => Epoch: {}'.format(self.idx, ell))
@@ -477,11 +491,11 @@ class Client(object):
                 fx = net(images)
                 
                 # Sending activations to server 
-                evaluate_server(fx, labels, self.idx, len_batch, ell)
+                acc_avg_test, loss_avg_test = evaluate_server(fx, labels, self.idx, len_batch, ell)
             
             #prRed('Client{} Test => Epoch: {}'.format(self.idx, ell))
             
-        return          
+        return acc_avg_test, loss_avg_test         
 #=====================================================================================================
 # dataset_iid() will create a dictionary to collect the indices of the data samples randomly for each client
 # IID HAM10000 datasets will be created based on this
@@ -580,11 +594,7 @@ test_transforms = transforms.Compose([
 # dataset_test = SkinData(test, transform = test_transforms)
 
 from dataset import get_dataset
-class Args():
-    pass
-args = Args()
-args.dataset = 'cifar10'
-dataset_train, dataset_test = get_dataset(args)
+dataset_train, dataset_test = get_dataset('agnews')
 
 #----------------------------------------------------------------
 dict_users = dataset_iid(dataset_train, num_users)
@@ -597,19 +607,33 @@ net_glob_client.train()
 w_glob_client = net_glob_client.state_dict()
 # Federation takes place after certain local epochs in train() client-side
 # this epoch is global epoch, also known as rounds
+class Args():
+    pass
+args = Args()
+args.dataset = 'agnews'
+args.model = 'charcnn'
+current = 0
+writer = Writer(args=args)
+
 for iter in range(epochs):
     m = max(int(frac * num_users), 1)
     idxs_users = np.random.choice(range(num_users), m, replace = False)
     w_locals_client = []
+    client_times, server_times = [], []
       
     for idx in idxs_users:
         local = Client(net_glob_client, idx, lr, device, dataset_train = dataset_train, dataset_test = dataset_test, idxs = dict_users[idx], idxs_test = dict_users_test[idx])
         # Training ------------------
         w_client = local.train(net = copy.deepcopy(net_glob_client).to(device))
         w_locals_client.append(copy.deepcopy(w_client))
-        
+        client_times.append(local.client_time)
+        server_times.append(local.server_time)
         # Testing -------------------
-        local.evaluate(net = copy.deepcopy(net_glob_client).to(device), ell= iter)
+        acc, loss = local.evaluate(net = copy.deepcopy(net_glob_client).to(device), ell= iter)
+    
+    current += min(client_times) + sum(server_times)
+    writer.add_scalars("epoch", {"splitfed_acc":acc/100, "splitfed_loss":loss}, iter)
+    writer.add_scalars("time", {"splitfed_acc":acc/100}, current)
         
             
     # Ater serving all clients for its local epochs------------
@@ -628,10 +652,10 @@ print("Training and Evaluation completed!")
 
 #===============================================================================
 # Save output data to .excel file (we use for comparision plots)
-round_process = [i for i in range(1, len(acc_train_collect)+1)]
-df = DataFrame({'round': round_process,'acc_train':acc_train_collect, 'acc_test':acc_test_collect})     
-file_name = program+".xlsx"    
-df.to_excel(file_name, sheet_name= "v1_test", index = False)     
+# round_process = [i for i in range(1, len(acc_train_collect)+1)]
+# df = DataFrame({'round': round_process,'acc_train':acc_train_collect, 'acc_test':acc_test_collect})     
+# file_name = program+".xlsx"    
+# df.to_excel(file_name, sheet_name= "v1_test", index = False)     
 
 #=============================================================================
 #                         Program Completed

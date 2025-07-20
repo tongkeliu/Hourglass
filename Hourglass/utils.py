@@ -9,11 +9,11 @@ from torch.utils.tensorboard import SummaryWriter
 def args_parser():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--epochs', type=int, default=80,
+    parser.add_argument('--epochs', type=int, default=100,
                         help="number of rounds of training")
-    parser.add_argument('--num_users', type=int, default=10,
+    parser.add_argument('--num_users', type=int, default=20,
                         help="number of users: K")
-    parser.add_argument('--frac', type=float, default=0.6,
+    parser.add_argument('--frac', type=float, default=1,
                         help='the fraction of clients: C')
     parser.add_argument('--local_ep', type=int, default=1,
                         help="the number of local epochs: E")
@@ -30,14 +30,14 @@ def args_parser():
                         of dataset", choices=['cifar10','cinic10','agnews','sc'])
     parser.add_argument('--num_classes', type=int, default=10, help="number \
                         of classes", choices=[10, 4, 35])
-    parser.add_argument('--model', type=str, default='resnet50', help='model to use',\
+    parser.add_argument('--model', type=str, default='vgg16', help='model to use',\
                         choices=["resnet50", "vgg16", "vit", "charcnn", "lstm", "vgg16_1d"])
 
     parser.add_argument('--device', type=str, default='cuda:3', help="client side device")
     parser.add_argument('--verbose', type=int, default=1, help='verbose')
     parser.add_argument('--seed', type=int, default=1234, help='random seed')
     
-    parser.add_argument('--strategy', type=str, default='SFF', help='feature scheduleing\
+    parser.add_argument('--strategy', type=str, default='DFF', help='feature scheduleing\
                         strategys', choices=['FCFS', 'SFF', 'DFF'])
     parser.add_argument('--n_clusters', type=int, default=4, help='clusters for kmeans')
     parser.add_argument('--split_method', type=str, default='LSH', help='method used\
@@ -52,7 +52,7 @@ def get_logger(args):
     if not os.path.exists(base_dir):
         os.makedirs(base_dir)
     current_time = time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time()))
-    details = f"{args.model}-{args.dataset}-{current_time}.log"
+    details = f"{args.model}-{args.dataset}-{args.strategy}-{current_time}.log"
     log_dir = os.path.join(base_dir, details)
     logger = logging.getLogger('logger')
     logger.setLevel(logging.DEBUG)

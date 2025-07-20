@@ -26,6 +26,7 @@ def main(args):
     logger = get_logger(args)
     logger.info(args)
     writer = Writer(args)
+    local_prefix = args.strategy+'_'
     collate_fn = get_collate_fn(args)
     logger.info(f"we use {min(args.M_GPU, torch.cuda.device_count())} GPUs")
     servers = [Server(deepcopy(server_side_model).to(f'cuda:{i}'), args) for i in range(args.M_GPU)]
@@ -68,11 +69,11 @@ def main(args):
 
         # record the evaluation result
         logger.info("epoch:{} accs:{} loss:{}".format(epoch, acc, loss))
-        writer.add_scalars("epoch", {"acc":acc, "loss":loss}, epoch)
+        writer.add_scalars("epoch", {local_prefix+"acc":acc, local_prefix+"loss":loss}, epoch)
 
         current_time = current_time + scheduler.duration
         scheduler.duration = 0
-        writer.add_scalars("time", {args.strategy+'_'+"acc":acc}, float(current_time))
+        writer.add_scalars("time", {local_prefix+"acc":acc}, float(current_time))
         logger.debug("time:{} accs:{} loss:{}".format(current_time, acc, loss))
 
     logger.info("Done")

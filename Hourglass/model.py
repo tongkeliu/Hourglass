@@ -461,7 +461,7 @@ def get_model(model, client_device, num_classes):
         client_side_model = ClientModelVgg16().to(client_device)
         server_side_model = ServerModelVgg16(num_classes)
     elif model == 'vit':
-        client_side_model = ClientModelViT().to(client_device)
+        client_side_model = ClientModelViT(img_size=32).to(client_device)
         server_side_model = ServerModelViT(n_classes=num_classes)
     elif model == 'charcnn':
         client_side_model = ClientModelCharCNN(70).to(client_device)
